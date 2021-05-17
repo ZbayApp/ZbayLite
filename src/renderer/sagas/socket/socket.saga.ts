@@ -1,4 +1,4 @@
-import { io } from 'socket.io-client'
+import { io, Socket } from 'socket.io-client'
 import crypto from 'crypto'
 import * as R from 'ramda'
 import {
@@ -8,7 +8,7 @@ import {
 import { eventChannel } from 'redux-saga'
 import { transferToMessage } from '../publicChannels/publicChannels.saga'
 import { fork } from 'redux-saga/effects'
-import { call, take, select, put } from 'typed-redux-saga'
+import { apply, call, take, select, put, all, takeEvery } from 'typed-redux-saga'
 import { ActionFromMapping, Socket as socketsActions } from '../const/actionsTypes'
 import channelSelectors from '../../store/selectors/channel'
 import identitySelectors from '../../store/selectors/identity'
@@ -17,8 +17,9 @@ import { messages } from '../../zbay'
 import config from '../../config'
 import { messageType } from '../../../shared/static'
 import { ipcRenderer } from 'electron'
+import { PayloadAction } from '@reduxjs/toolkit'
 
-export const connect = async () => {
+export const connect = async (): Promise<Socket => {
   const socket = io(config.socket.address)
   return await new Promise(resolve => {
     socket.on('connect', async () => {
@@ -28,7 +29,7 @@ export const connect = async () => {
   })
 }
 
-export function subscribe(socket) {
+export function subscribe(socket: Socket) {
   return eventChannel<ActionFromMapping<PublicChannelsActions>>(emit => {
     socket.on(socketsActions.MESSAGE, payload => {
       emit(publicChannelsActions.loadMessage(payload))
@@ -39,11 +40,11 @@ export function subscribe(socket) {
     socket.on(socketsActions.RESPONSE_GET_PUBLIC_CHANNELS, payload => {
       emit(publicChannelsActions.responseGetPublicChannels(payload))
     })
-    return () => {}
+    return () => { }
   })
 }
 
-export function* handleActions(socket): Generator {
+export function* handleActions(socket: Socket): Generator {
   const socketChannel = yield* call(subscribe, socket)
   while (true) {
     const action = yield* take(socketChannel)
@@ -51,74 +52,72 @@ export function* handleActions(socket): Generator {
   }
 }
 
-export function* sendMessage(socket): Generator {
-  while (true) {
-    yield* take(`${publicChannelsActions.sendMessage}`)
-    const { address } = yield* select(channelSelectors.channel)
-    const messageToSend = yield* select(channelSelectors.message)
-    const users = yield* select(usersSelectors.users)
-    let message = null
-    const privKey = yield* select(identitySelectors.signerPrivKey)
-    message = messages.createMessage({
-      messageData: {
-        type: messageType.BASIC,
-        data: messageToSend
-      },
-      privKey: privKey
+export function* sendMessage(socket: Socket): Generator {
+  const { address } = yield* select(channelSelectors.channel)
+  const messageToSend = yield* select(channelSelectors.message)
+  const users = yield* select(usersSelectors.users)
+  let message = null
+  const privKey = yield* select(identitySelectors.signerPrivKey)
+  message = messages.createMessage({
+    messageData: {
+      type: messageType.BASIC,
+      data: messageToSend
+    },
+    privKey: privKey
+  })
+  const messageDigest = crypto.createHash('sha256')
+  const messageEssentials = R.pick(['createdAt', 'message'])(message)
+  const key = messageDigest.update(JSON.stringify(messageEssentials)).digest('hex')
+  const preparedMessage = {
+    ...message,
+    id: key,
+    typeIndicator: false,
+    signature: message.signature.toString('base64')
+  }
+  const displayableMessage = transferToMessage(preparedMessage, users)
+  yield put(
+    publicChannelsActions.addMessage({
+      key: address,
+      message: { [preparedMessage.id]: displayableMessage }
     })
-    const messageDigest = crypto.createHash('sha256')
-    const messageEssentials = R.pick(['createdAt', 'message'])(message)
-    const key = messageDigest.update(JSON.stringify(messageEssentials)).digest('hex')
-    const preparedMessage = {
-      ...message,
-      id: key,
-      typeIndicator: false,
-      signature: message.signature.toString('base64')
-    }
-    const displayableMessage = transferToMessage(preparedMessage, users)
-    yield put(
-      publicChannelsActions.addMessage({
-        key: address,
-        message: { [preparedMessage.id]: displayableMessage }
-      })
-    )
-    socket.emit(socketsActions.SEND_MESSAGE, { channelAddress: address, message: preparedMessage })
-  }
+  )
+  yield* apply(socket, socket.emit, [socketsActions.SEND_MESSAGE, { channelAddress: address, message: preparedMessage }])
+
 }
 
-export function* subscribeForTopic(socket): Generator {
-  while (true) {
-    const { payload } = yield* take(`${publicChannelsActions.subscribeForTopic}`)
-    socket.emit(socketsActions.SUBSCRIBE_FOR_TOPIC, payload)
-  }
+export function* subscribeForTopic(
+  socket: Socket,
+  { payload }: PayloadAction<typeof publicChannelsActions.subscribeForTopic>,
+): Generator {
+  yield* apply(socket, socket.emit, [socketsActions.SUBSCRIBE_FOR_TOPIC, payload])
 }
 
-export function* fetchAllMessages(socket): Generator {
-  while (true) {
-    const { payload } = yield* take(`${publicChannelsActions.loadAllMessages}`)
-    socket.emit(socketsActions.FETCH_ALL_MESSAGES, payload)
-  }
+export function* fetchAllMessages(
+  socket: Socket,
+  { payload }: PayloadAction<typeof publicChannelsActions.loadAllMessages>,
+): Generator {
+  yield* apply(socket, socket.emit, [socketsActions.FETCH_ALL_MESSAGES, payload])
 }
 
-export function* getPublicChannels(socket): Generator {
-  while (true) {
-    yield* take(`${publicChannelsActions.getPublicChannels}`)
-    socket.emit(socketsActions.GET_PUBLIC_CHANNELS)
-  }
+export function* getPublicChannels(socket: Socket): Generator {
+  yield* apply(socket, socket.emit, [socketsActions.GET_PUBLIC_CHANNELS])
 }
 
-export function* useIO(socket): Generator {
-  yield fork(handleActions, socket)
-  yield fork(sendMessage, socket)
-  yield fork(fetchAllMessages, socket)
-  yield fork(subscribeForTopic, socket)
-  yield fork(getPublicChannels, socket)
+export function* useIO(socket: Socket): Generator {
+  yield all([
+    fork(handleActions, socket),
+    takeEvery(publicChannelsActions.sendMessage.type, sendMessage, socket),
+    takeEvery(publicChannelsActions.loadAllMessages.type, fetchAllMessages, socket),
+    takeEvery(publicChannelsActions.subscribeForTopic.type, subscribeForTopic, socket),
+    takeEvery(publicChannelsActions.getPublicChannels.type, getPublicChannels, socket),
+  ])
 }
 
 export function* startConnection(): Generator {
-  while (true) {
-    yield take(socketsActions.CONNECT_TO_WEBSOCKET_SERVER)
-    const socket = yield call(connect)
-    yield fork(useIO, socket)
-  }
+  const socket = yield* call(connect)
+  yield fork(useIO, socket)
+}
+
+export function* socketSaga(): Generator {
+  yield all([takeEvery(socketsActions.CONNECT_TO_WEBSOCKET_SERVER, startConnection)])
 }
