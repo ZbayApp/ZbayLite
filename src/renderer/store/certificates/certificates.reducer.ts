@@ -6,6 +6,7 @@ export class CertificatesState {
     certificate: '',
     privateKey: ''
   }
+  certificateRegistrationError: string  = ''
 }
 
 export const certificates = createSlice({
@@ -21,14 +22,20 @@ export const certificates = createSlice({
     setOwnCertKey: (state, action: PayloadAction<string>) => {
       state.ownCertificate.privateKey = action.payload
     },
-    creactOwnCertificate: (state, _action: PayloadAction<string>) => {
+    createOwnCertificate: (state, _action: PayloadAction<string>) => {
       return state
     },
-    saveCertificate: (state, _action: PayloadAction<string>) => {
+    // saveCertificate: (state, _action: PayloadAction<string>) => {
+    //   return state
+    // },
+    registerUserCertificate: (state, _action: PayloadAction<{serviceAddress: string, userCsr: any}>) => {
       return state
     },
     responseGetCertificates: (state, _action: PayloadAction<{ certificates: string[] }>) => {
       return state
+    },
+    setCertificateRegistrationError: (state, action: PayloadAction<string>) => {
+      state.certificateRegistrationError = action.payload
     }
   }
 })

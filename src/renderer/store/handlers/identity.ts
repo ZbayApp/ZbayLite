@@ -444,7 +444,7 @@ export const setIdentityEpic = identityToSet => async (dispatch, getState) => {
     dispatch(setLoadingMessage('Loading users and messages'))
   } catch (err) { }
   if (isNewUser === true) {
-    await dispatch(usersHandlers.epics.fetchTakenUsernames())
+    // await dispatch(usersHandlers.epics.fetchTakenUsernames())
     dispatch(modalsHandlers.actionCreators.openModal('createUsernameModal')())
   }
   if (!isNewUser && hasNewOnionAddress) {

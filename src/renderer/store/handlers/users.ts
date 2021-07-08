@@ -147,7 +147,7 @@ export const createOrUpdateUser = (payload: {
   const publicKey = identitySelector.signerPubKey(getState())
   const address = identitySelector.address(getState())
 
-  dispatch(certificatesActions.creactOwnCertificate(nickname))
+  dispatch(certificatesActions.createOwnCertificate(nickname))
 
   const isDev = process.env.NODE_ENV === 'development'
 
@@ -157,88 +157,88 @@ export const createOrUpdateUser = (payload: {
 
   dispatch(actionCreators.closeModal('accountSettingsModal')())
 
-  try {
-    dispatch(
-      identityActions.setRegistraionStatus({
-        nickname,
-        status: 'IN_PROGRESS'
-      })
-    )
-    dispatch(
-      mockOwnUser({
-        sigPubKey: publicKey,
-        address,
-        nickname
-      })
-    )
-    dispatch(notificationsHandlers.actions.removeSnackbar('username'))
-  } catch (err) {
-    console.log(err)
-    dispatch(
-      identityActions.setRegistraionStatus({
-        nickname,
-        status: 'ERROR'
-      })
-    )
-    dispatch(actionCreators.openModal('failedUsernameRegister')())
-  }
+  // try {  // It's not needed anymore
+  //   dispatch(
+  //     identityActions.setRegistraionStatus({
+  //       nickname,
+  //       status: 'IN_PROGRESS'
+  //     })
+  //   )
+  //   dispatch(
+  //     mockOwnUser({
+  //       sigPubKey: publicKey,
+  //       address,
+  //       nickname
+  //     })
+  //   )
+  //   dispatch(notificationsHandlers.actions.removeSnackbar('username'))
+  // } catch (err) {
+  //   console.log(err)
+  //   dispatch(
+  //     identityActions.setRegistraionStatus({
+  //       nickname,
+  //       status: 'ERROR'
+  //     })
+  //   )
+  //   dispatch(actionCreators.openModal('failedUsernameRegister')())
+  // }
 }
 
-export const fetchUsers = (messages: DisplayableMessage[]) => async (dispatch, getState) => {
-  const filteredZbayMessages = messages.filter(msg => msg.memohex.startsWith('ff'))
-  const registrationMessages = await Promise.all(
-    filteredZbayMessages.map(async transfer => {
-      const message = await zbayMessages.transferToMessage(transfer)
-      return message
-    })
-  )
-  let minfee = 0
-  let users = {}
-  const network = nodeSelectors.network()
+// export const fetchUsers = (messages: DisplayableMessage[]) => async (dispatch, getState) => {
+//   const filteredZbayMessages = messages.filter(msg => msg.memohex.startsWith('ff'))
+//   const registrationMessages = await Promise.all(
+//     filteredZbayMessages.map(async transfer => {
+//       const message = await zbayMessages.transferToMessage(transfer)
+//       return message
+//     })
+//   )
+//   let minfee = 0
+//   let users = {}
+//   const network = nodeSelectors.network()
 
-  const signerPubKey = identitySelector.signerPubKey(getState())
-  for (const msg of registrationMessages) {
-    if (
-      msg.type === messageType.CHANNEL_SETTINGS &&
-      staticChannels.zbay[network].publicKey === msg.publicKey
-    ) {
-      minfee = parseFloat(msg.message.minFee)
-    }
-    if (
-      (msg.type !== messageType.USER && msg.type !== messageType.USER_V2) ||
-      !msg.spent.gte(minfee)
-    ) {
-      continue
-    }
-    const user = ReceivedUser(msg)
-    if (user !== null) {
-      users = {
-        ...users,
-        ...user
-      }
-    }
-  }
-  dispatch(feesHandlers.actions.setUserFee(minfee))
-  const isRegistrationComplete = users[signerPubKey]
-  if (isRegistrationComplete) {
-    if (users[signerPubKey].createdAt !== 0) {
-      dispatch(
-        identityActions.setRegistraionStatus({
-          nickname: '',
-          status: 'SUCCESS'
-        })
-      )
-      dispatch(
-        notificationsHandlers.actions.enqueueSnackbar(
-          successNotification({
-            message: 'Username registered.'
-          })
-        )
-      )
-    }
-  }
-  dispatch(setUsers({ users }))
-}
+//   const signerPubKey = identitySelector.signerPubKey(getState())
+//   for (const msg of registrationMessages) {
+//     if (
+//       msg.type === messageType.CHANNEL_SETTINGS &&
+//       staticChannels.zbay[network].publicKey === msg.publicKey
+//     ) {
+//       minfee = parseFloat(msg.message.minFee)
+//     }
+//     if (
+//       (msg.type !== messageType.USER && msg.type !== messageType.USER_V2) ||
+//       !msg.spent.gte(minfee)
+//     ) {
+//       continue
+//     }
+//     const user = ReceivedUser(msg)
+//     if (user !== null) {
+//       users = {
+//         ...users,
+//         ...user
+//       }
+//     }
+//   }
+//   dispatch(feesHandlers.actions.setUserFee(minfee))
+//   const isRegistrationComplete = users[signerPubKey]
+//   if (isRegistrationComplete) {
+//     if (users[signerPubKey].createdAt !== 0) {
+//       dispatch(
+//         identityActions.setRegistraionStatus({
+//           nickname: '',
+//           status: 'SUCCESS'
+//         })
+//       )
+//       dispatch(
+//         notificationsHandlers.actions.enqueueSnackbar(
+//           successNotification({
+//             message: 'Username registered.'
+//           })
+//         )
+//       )
+//     }
+//   }
+//   dispatch(setUsers({ users }))
+// }
 export const fetchOnionAddresses = (messages: DisplayableMessage[]) => async (
   dispatch,
   getState

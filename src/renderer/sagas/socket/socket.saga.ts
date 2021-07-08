@@ -67,6 +67,13 @@ export function subscribe(socket) {
     socket.on(socketsActions.RESPONSE_GET_CERTIFICATES, payload => {
       emit(certificatesActions.responseGetCertificates(payload))
     })
+    socket.on(socketsActions.SEND_USER_CERTIFICATE, (payload: string) => {
+      // Save certificate that came from waggle
+      emit(certificatesActions.setOwnCertificate(payload))
+    })
+    socket.on(socketsActions.CERTIFICATE_REGISTRATION_ERROR, (payload: string) => {
+      emit(certificatesActions.setCertificateRegistrationError(payload))
+    })
     socket.on(socketsActions.SEND_IDS, payload => {
       emit(publicChannelsActions.sendIds(payload))
     })
@@ -211,11 +218,18 @@ export function* askForMessages(
   yield* apply(socket, socket.emit, [socketsActions.ASK_FOR_MESSAGES, payload])
 }
 
-export function* saveCertificate(
+// export function* saveCertificate(
+//   socket: Socket,
+//   action: PayloadAction<ReturnType<typeof certificatesActions.saveCertificate>['payload']>
+// ): Generator {
+//   yield* apply(socket, socket.emit, [socketsActions.SAVE_CERTIFICATE, action.payload])
+// }
+
+export function* registerUserCertificate(
   socket: Socket,
-  action: PayloadAction<ReturnType<typeof certificatesActions.saveCertificate>['payload']>
+  action: PayloadAction<ReturnType<typeof certificatesActions.registerUserCertificate>['payload']>
 ): Generator {
-  yield* apply(socket, socket.emit, [socketsActions.SAVE_CERTIFICATE, action.payload])
+  yield* apply(socket, socket.emit, [socketsActions.REGISTER_USER_CERTIFICATE, action.payload])
 }
 
 export function* responseGetCertificates(socket: Socket): Generator {
@@ -272,7 +286,7 @@ export function* useIO(socket: Socket): Generator {
       socket
     ),
     takeEvery(directMessagesActions.sendDirectMessage.type, sendDirectMessage, socket),
-    takeEvery(certificatesActions.saveCertificate.type, saveCertificate, socket),
+    // takeEvery(certificatesActions.saveCertificate.type, saveCertificate, socket),
     takeLeading(
       directMessagesActions.getPrivateConversations.type,
       getPrivateConversations,
@@ -283,6 +297,7 @@ export function* useIO(socket: Socket): Generator {
       subscribeForDirectMessageThread,
       socket
     ),
+    takeEvery(certificatesActions.registerUserCertificate.type, registerUserCertificate, socket),
     fork(addWaggleIdentity, socket)
   ])
 }

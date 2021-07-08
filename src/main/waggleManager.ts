@@ -24,7 +24,7 @@ export const spawnTor = async () => {
 
   const ports = await getPorts()
   electronStore.set('ports', ports)
-
+  console.log('TOR socksPort - :', ports.socksPort)
   const tor = new TlgManager.Tor({
     socksPort: ports.socksPort,
     torPath: isDev ? pathDev : pathProd,

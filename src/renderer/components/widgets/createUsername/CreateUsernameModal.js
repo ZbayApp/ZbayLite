@@ -105,10 +105,25 @@ const styles = theme => ({
   }
 })
 
-Yup.addMethod(Yup.mixed, 'validateMessage', function (username, takenUsernames) {
+export const registerUser = async (): Promise<any> => {
+  const socket = io(config.socket.address)
+  return await new Promise(resolve => {
+    socket.once('sendUserCertificate', resolve())
+    socket.once('sendUserCertificate', resolve())
+  })
+}
+
+Yup.addMethod(Yup.mixed, 'validateMessage', function (username) {
   return this.test('test', 'Sorry username already taken. please choose another', function (value) {
-    const isUsernameTaken = takenUsernames.includes(username)
-    return !isUsernameTaken
+    // if (electronStore.get('usernameTaken'))
+    // const isUsernameTaken = takenUsernames.includes(username)
+    return !electronStore.get('isUsernameTaken')
+  })
+})
+
+Yup.addMethod(Yup.mixed, 'handleCertErrors', function() {
+  return this.test('certErrors', 'Sorry, something went wrong. Try again', function (value) {
+    return !electronStore.get('certificateRegistrationError')
   })
 })
 
@@ -124,12 +139,12 @@ const getErrorsFromValidationError = validationError => {
 
 const sanitize = x => (x ? x.replace(/[^a-zA-Z0-9]+$/g, '').toLowerCase() : undefined)
 
-const validate = ({ nickname }, takenUsernames) => {
+const validate = ({ nickname }) => {
   const sanitizedValue = sanitize(nickname)
   const values = {
     nickname: sanitizedValue
   }
-  const validationSchema = getValidationSchema(values, takenUsernames)
+  const validationSchema = getValidationSchema(values)
   try {
     validationSchema.validateSync(values, { abortEarly: false })
     return {}
@@ -138,7 +153,7 @@ const validate = ({ nickname }, takenUsernames) => {
   }
 }
 
-const getValidationSchema = (values, takenUsernames) => {
+const getValidationSchema = (values) => {
   return Yup.object().shape({
     nickname: Yup.string()
       .min(3)
@@ -148,7 +163,7 @@ const getValidationSchema = (values, takenUsernames) => {
           'Your username cannot have any spaces or special characters, must be lowercase letters and numbers only',
         excludeEmptyString: true
       })
-      .validateMessage(values.nickname, takenUsernames)
+      .validateMessage(values.nickname)
       .required('Required')
   })
 }
@@ -190,6 +205,8 @@ const submitForm = (handleSubmit, values, setFormSent) => {
   handleSubmit(values)
 }
 
+
+
 export const CreateUsernameModal = ({
   classes,
   open,
@@ -200,6 +217,7 @@ export const CreateUsernameModal = ({
   const [isTouched, setTouched] = useState(false)
   const [formSent, setFormSent] = useState(false)
   const isNewUser = electronStore.get('isNewUser')
+  // electronStore.set('isUsernameTaken', false)
   return (
     <Modal open={open} handleClose={handleClose} isCloseDisabled={isNewUser}>
       <Grid container className={classes.main} direction='column'>
@@ -211,7 +229,7 @@ export const CreateUsernameModal = ({
             <Formik
               onSubmit={values => submitForm(handleSubmit, values, setFormSent)}
               initialValues={initialValues}
-              validate={values => validate(values, initialValues.takenUsernames.takenUsernames)}>
+              validate={values => validate(values)}>
               {() => {
                 return (
                   <Form className={classes.fullWidth}>

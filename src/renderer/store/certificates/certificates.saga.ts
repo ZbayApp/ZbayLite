@@ -3,9 +3,10 @@ import { PayloadAction } from '@reduxjs/toolkit'
 
 import { certificatesActions } from './certificates.reducer'
 import { createUserCsr } from '../../pkijs/generatePems/requestCertificate'
-import { createUserCert } from '../../pkijs/generatePems/generateUserCertificate'
-import { dataFromRootPems } from '../../../shared/static'
+// import { createUserCert } from '../../pkijs/generatePems/generateUserCertificate'
+// import { dataFromRootPems } from '../../../shared/static'
 import electronStore from '../../../shared/electronStore'
+import { registrationServiceAddress } from '../../../shared/static'
 
 export function* responseGetCertificates(
   action: PayloadAction<ReturnType<typeof certificatesActions.responseGetCertificates>['payload']>
@@ -16,14 +17,9 @@ export function* responseGetCertificates(
 
 export const getDate = (date?: string) => date ? new Date(date) : new Date()
 
-export function* creactOwnCertificate(
-  action: PayloadAction<ReturnType<typeof certificatesActions.creactOwnCertificate>['payload']>
+export function* createOwnCertificate(
+  action: PayloadAction<ReturnType<typeof certificatesActions.createOwnCertificate>['payload']>
 ): Generator {
-  const certString = dataFromRootPems.certificate
-  const keyString = dataFromRootPems.privKey
-  const notBeforeDate = yield* call(getDate)
-  const notAfterDate = yield* call(getDate, '1/1/2031')
-
   interface HiddenServicesType {
     libp2pHiddenService?: {
       onionAddress: string
@@ -48,22 +44,28 @@ export function* creactOwnCertificate(
     peerId: peerIdAddress
   }
 
-  console.log('userData', userData)
+  console.log('Creating user csr', userData)
 
   const user = yield* call(createUserCsr, userData)
 
-  console.log('poszlo dalej')
+  console.log('After creating user csr')
 
-  const userCertData = yield* call(createUserCert, certString, keyString, user.userCsr, notBeforeDate, notAfterDate)
+  // sending csr
+  yield put(
+    certificatesActions.registerUserCertificate({
+      serviceAddress: registrationServiceAddress,
+      userCsr: user
+    })
+  )
 
-  yield* put(certificatesActions.setOwnCertificate(userCertData.userCertString))
+  console.log('After registering csr')
+
   yield* put(certificatesActions.setOwnCertKey(user.userKey))
-  yield* put(certificatesActions.saveCertificate(userCertData.userCertString))
 }
 
 export function* certificatesSaga(): Generator {
   yield* all([
     takeEvery(certificatesActions.responseGetCertificates.type, responseGetCertificates),
-    takeEvery(certificatesActions.creactOwnCertificate.type, creactOwnCertificate)
+    takeEvery(certificatesActions.createOwnCertificate.type, createOwnCertificate)
   ])
 }

@@ -33,7 +33,7 @@ export const mapDispatchToProps = dispatch =>
   bindActionCreators(
     {
       handleSubmit: ({ nickname }) => {
-        electronStore.set('isNewUser', false)
+        electronStore.set('isNewUser', false)  // It should be set after CONFIRMING that user is registered
         return usersHandlers.epics.createOrUpdateUser({ nickname, debounce: true })
       }
     },
